@@ -34,7 +34,10 @@ public:
     }
 
 private:
-    static const uint8_t PCA9685         = 0x80;
+    void reset();
+
+    static bool m_configured;
+    static const uint8_t PCA9685         = 0x40;
     static const uint8_t READ            = 0x01;
     static const uint8_t WRITE           = 0x00;
 
@@ -81,7 +84,7 @@ private:
 
     void setFrequency(float freq);
 
-    bool    write(uint8_t addr, uint8_t * values, uint8_t len = 1);
+    uint8_t write(uint8_t addr, uint8_t * values, uint8_t len = 1);
     uint8_t read (uint8_t addr);
 
     // last known set value

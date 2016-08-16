@@ -16,9 +16,16 @@
  *
  */
 
+//#include <memory>
 #include <math.h>
 #include <dimmer.h>
-#include <twi.h>
+//#include <twi.h>
+#include <Wire.h>
+
+#define SDA_PIN 5
+#define SCL_PIN 4
+
+bool Dimmer::m_configured = false;
 
 Dimmer::Dimmer(uint8_t channel, uint16_t max)
     : m_channel(channel),
@@ -27,22 +34,27 @@ Dimmer::Dimmer(uint8_t channel, uint16_t max)
       ON_H     (channel * 4 + LED_ON_H),
       OFF_L    (channel * 4 + LED_OFF_L),
       OFF_H    (channel * 4 + LED_OFF_H),
-      m_value  (0)
+      m_value  (max)
 {
-    twi_init(1, 2);
+    Wire.begin(SDA_PIN, SCL_PIN);
 
-    uint8_t mode1 = MODE1_AUTOINC;
-    uint8_t mode2 = MODE2_INVERT;
-
-    write(MODE1, &mode1);
-    write(MODE2, &mode2);
-
-    setLevel(max);
+    Wire.beginTransmission(PCA9685);
+    Wire.write(MODE1);
+    Wire.write(MODE1_AUTOINC);
+    Wire.write(MODE2_INVERT);
+    Wire.endTransmission();
 }
+
 Dimmer::~Dimmer()
+{}
+
+void Dimmer::reset()
 {
-    twi_stop();
+    Wire.beginTransmission(0x00);
+    Wire.write(0x06);
+    Wire.endTransmission();
 }
+
 bool Dimmer::setLevel(uint16_t value)
 {
     // our ON values are always offset depending on channel
@@ -53,7 +65,7 @@ bool Dimmer::setLevel(uint16_t value)
     uint8_t * pon    = (uint8_t*)&m_offset;
     uint8_t   pwm[4] = {pon[0], pon[1], poff[0], poff[1]};
 
-    bool ret = write(ON_L, pwm, 4);
+    bool ret = write(ON_L, pwm, 4) == 0;
 
     if (ret)
         m_value = value;
@@ -66,36 +78,38 @@ void Dimmer::setFrequency(float freq)
     float prescaleval = 25000000;
 
     prescaleval /= 4096;
-    prescaleval /= freq;
+    prescaleval /= (freq * 0.9);
     prescaleval -= 1;
 
     uint8_t prescale = floor(prescaleval + 0.5);
-    uint8_t oldmode  = read(MODE1) | 0xA1;
+    uint8_t oldmode  = read(MODE1);
     uint8_t newmode  = (oldmode & 0x7F) | 0x10; // sleep
 
     write(MODE1, &newmode);             // go to sleep
     write(PCA9685_PRESCALE, &prescale); // set the prescaler
     write(MODE1, &oldmode);
 
-    //write(MODE1, oldmode | 0xa1);
+    oldmode = oldmode | 0xA1;
+
+    write(MODE1, &oldmode);
 }
 
 uint8_t Dimmer::read(uint8_t addr)
 {
-    uint8_t ret = twi_readFrom(PCA9685 | READ, &addr, 1, 1);;
+    Wire.beginTransmission(PCA9685);
+    Wire.write(addr);
+    Wire.endTransmission(false);
 
-
-
-
-    return ret;
+    Wire.requestFrom(PCA9685, (uint8_t)1);
+    return Wire.read();
 }
 
-bool Dimmer::write(uint8_t addr, uint8_t *values, uint8_t len)
+uint8_t Dimmer::write(uint8_t addr, uint8_t *values, uint8_t len)
 {
-    bool ret = true;
+    Wire.beginTransmission(PCA9685);
 
-    ret &= twi_writeTo(PCA9685 | WRITE, &addr, 1, 0) == len;
-    ret &= twi_writeTo(PCA9685 | WRITE, values, len, 1) == len;
+    Wire.write(addr);
+    Wire.write(values, len);
 
-    return ret;
+    return Wire.endTransmission();
 }
