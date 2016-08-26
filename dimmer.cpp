@@ -16,7 +16,7 @@
  *
  */
 
-//#include <memory>
+#include <Arduino.h>
 #include <math.h>
 #include <dimmer.h>
 //#include <twi.h>
@@ -43,6 +43,8 @@ Dimmer::Dimmer(uint8_t channel, uint16_t max)
     Wire.write(MODE1_AUTOINC);
     Wire.write(MODE2_INVERT);
     Wire.endTransmission();
+
+    setFrequency(120);
 }
 
 Dimmer::~Dimmer()
